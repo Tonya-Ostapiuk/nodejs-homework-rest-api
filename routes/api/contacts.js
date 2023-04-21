@@ -1,11 +1,12 @@
 const express = require("express");
-const contactsRep = require("../../models/contacts");
+const { ContactModel } = require("../../database/contact.model")
+// const contactsRep = require("../../models/contacts");
 const router = express.Router();
-const { addContactSchema } = require("../../schemas/validation.schema");
+const { addContactSchema, favoriteJoiSchema } = require("../../schemas/validation.schema");
 
 router.get("/", async (req, res, next) => {
   try {
-    const contacts = await contactsRep.listContacts();
+    const contacts = await ContactModel.find({});
     res.json(contacts);
   } catch (error) {
     next(error);
@@ -15,7 +16,7 @@ router.get("/", async (req, res, next) => {
 router.get("/:contactId", async (req, res, next) => {
   try {
     const { contactId } = req.params;
-    const contact = await contactsRep.getContactById(contactId);
+    const contact = await ContactModel.findById(contactId);
     if (contact === null) {
       const error = new Error("Not found");
       error.code = 404;
@@ -29,9 +30,9 @@ router.get("/:contactId", async (req, res, next) => {
 
 router.post("/", async (req, res, next) => {
   try {
-    const {name, email, phone} = req.body;
+    const {name, email, phone, favorite } = req.body;
 
-    const { error } = addContactSchema.validate({ name, email, phone });
+    const { error } = addContactSchema.validate({ name, email, phone, favorite });
 
     if (error) {
       const err = new Error("Missing required name field");
@@ -39,7 +40,7 @@ router.post("/", async (req, res, next) => {
       throw err;
     }
 
-    const newContact = await contactsRep.addContact(name, email, phone);
+    const newContact = await ContactModel.create({name, email, phone, favorite });
     res.status(201).send(newContact)
   } catch (error) {
     next(error);
@@ -49,7 +50,7 @@ router.post("/", async (req, res, next) => {
 router.delete("/:contactId", async (req, res, next) => {
   try {
     const { contactId } = req.params;
-    const removeContact = await contactsRep.removeContact(contactId);
+    const removeContact = await ContactModel.findByIdAndDelete(contactId);
     if (removeContact === null) {
       const err = new Error("This contact is not found");
       err.code = 404;
@@ -64,8 +65,8 @@ router.delete("/:contactId", async (req, res, next) => {
 router.put("/:contactId", async (req, res, next) => {
   try {
     const { contactId } = req.params;
-    const { name, email, phone } = req.body;
-    const { error } = addContactSchema.validate({ name, email, phone });
+    const { name, email, phone, favorite } = req.body;
+    const { error } = addContactSchema.validate({ name, email, phone,favorite});
 
     if (error) {
       const err = new Error("Missing field");
@@ -73,7 +74,12 @@ router.put("/:contactId", async (req, res, next) => {
       throw err;
     }
 
-    const updateContact = await contactsRep.updateContact(contactId, { name, email, phone });
+    const updateContact = await ContactModel.findByIdAndUpdate(contactId, { name, email, phone, favorite }, {new: true})
+    .catch((e) => {
+      const err = Error("missing field favorite");
+      err.code = 400;
+      throw err;
+    });
 
     if (updateContact === null) {
       const err = new Error("This contact is not found");
@@ -86,5 +92,37 @@ router.put("/:contactId", async (req, res, next) => {
     next(error);
   }
 });
+
+router.patch("/:contactId/favorite", async (req, res, next) => {
+  try {
+    const { contactId } = req.params;
+    const { favorite } = req.body;
+    const { error } = favoriteJoiSchema.validate({ favorite});
+
+    if (error) {
+      const err = new Error("Missing field");
+      err.code = 400;
+      throw err;
+    }
+
+    const updateFavContact = await ContactModel.findByIdAndUpdate(contactId, { favorite }, {new: true})
+    .catch((e) => {
+      const err = Error("missing field favorite");
+      err.code = 400;
+      throw err;
+    });
+
+    if (updateFavContact === null) {
+      const err = new Error("This contact is not found");
+      err.code = 404;
+      throw err;
+    }
+    res.json(updateFavContact);
+
+  } catch (error) {
+    next(error);
+  }
+});
+
 
 module.exports = router;

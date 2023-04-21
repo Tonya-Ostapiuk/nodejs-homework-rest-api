@@ -15,10 +15,18 @@ const addContactSchema = Joi.object({
 
     phone: Joi.string()
         .pattern(/^\(\d{3}\) \d{3}-\d{4}$/)
-        .required()
+        .required(),
+
+    favorite: Joi.bool(),
 })
+
+const favoriteJoiSchema = Joi.object({
+    favorite: Joi.boolean().required(),
+});
    
+
 
 module.exports = {
     addContactSchema,
+    favoriteJoiSchema,
 }
