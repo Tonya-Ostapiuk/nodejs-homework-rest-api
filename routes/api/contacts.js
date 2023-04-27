@@ -1,25 +1,26 @@
 const express = require("express");
-const contactsRep = require("../../models/contacts");
+const { ContactModel } = require("../../database/contact.model")
+const {createHttpException} = require("../../servceis/index");
 const router = express.Router();
-const { addContactSchema } = require("../../schemas/validation.schema");
+const { addContactSchema, favoriteJoiSchema } = require("../../schemas/validation.schema");
+const {userAuthMiddeleware} = require("../../middlewares");
 
-router.get("/", async (req, res, next) => {
+
+router.get("/", userAuthMiddeleware, async (req, res, next) => {
   try {
-    const contacts = await contactsRep.listContacts();
+    const contacts = await ContactModel.find({});
     res.json(contacts);
   } catch (error) {
     next(error);
   }
 });
 
-router.get("/:contactId", async (req, res, next) => {
+router.get("/:contactId", userAuthMiddeleware, async (req, res, next) => {
   try {
     const { contactId } = req.params;
-    const contact = await contactsRep.getContactById(contactId);
+    const contact = await ContactModel.findById(contactId);
     if (contact === null) {
-      const error = new Error("Not found");
-      error.code = 404;
-      throw error;
+      throw createHttpException("Not found", 404);
     }
     res.json(contact);
   } catch (error) {
@@ -27,33 +28,34 @@ router.get("/:contactId", async (req, res, next) => {
   }
 });
 
-router.post("/", async (req, res, next) => {
+router.post("/", userAuthMiddeleware, async (req, res, next) => {
   try {
-    const {name, email, phone} = req.body;
+    const user = req.user;
+    console.log(req.user)
+    const {name, email, phone, favorite } = req.body;
 
-    const { error } = addContactSchema.validate({ name, email, phone });
+    const { error } = addContactSchema.validate({ name, email, phone, favorite });
 
     if (error) {
-      const err = new Error("Missing required name field");
-      err.code = 400;
-      throw err;
+      console.log(error)
+      throw createHttpException("Missing required name field", 400);
     }
 
-    const newContact = await contactsRep.addContact(name, email, phone);
+    const newContact = await ContactModel.create({name, email, phone, favorite, owner: user});
     res.status(201).send(newContact)
   } catch (error) {
     next(error);
   }
 });
 
-router.delete("/:contactId", async (req, res, next) => {
+router.delete("/:contactId", userAuthMiddeleware, async (req, res, next) => {
   try {
+    const user = req.user;
+    console.log(req.user)
     const { contactId } = req.params;
-    const removeContact = await contactsRep.removeContact(contactId);
+    const removeContact = await ContactModel.findByIdAndDelete(contactId, { owner: user });
     if (removeContact === null) {
-      const err = new Error("This contact is not found");
-      err.code = 404;
-      throw err;
+      throw createHttpException("This contact is not found", 404);
     }
     res.json(removeContact);
   } catch (error) {
@@ -61,24 +63,24 @@ router.delete("/:contactId", async (req, res, next) => {
   }
 });
 
-router.put("/:contactId", async (req, res, next) => {
+router.put("/:contactId", userAuthMiddeleware, async (req, res, next) => {
   try {
+    const user = req.user;
     const { contactId } = req.params;
-    const { name, email, phone } = req.body;
-    const { error } = addContactSchema.validate({ name, email, phone });
+    const { name, email, phone, favorite } = req.body;
+    const { error } = addContactSchema.validate({ name, email, phone,favorite});
 
     if (error) {
-      const err = new Error("Missing field");
-      err.code = 400;
-      throw err;
+      throw createHttpException("Missing field", 400);
     }
 
-    const updateContact = await contactsRep.updateContact(contactId, { name, email, phone });
+    const updateContact = await ContactModel.findByIdAndUpdate(contactId, { name, email, phone, favorite, owner: user }, {new: true})
+    .catch((e) => {
+      throw createHttpException("missing field favorite", 400);
+    });
 
     if (updateContact === null) {
-      const err = new Error("This contact is not found");
-      err.code = 404;
-      throw err;
+      throw createHttpException("This contact is not found", 404);
     }
     res.json(updateContact);
 
@@ -86,5 +88,31 @@ router.put("/:contactId", async (req, res, next) => {
     next(error);
   }
 });
+
+router.patch("/:contactId/favorite", async (req, res, next) => {
+  try {
+    const { contactId } = req.params;
+    const { favorite } = req.body;
+    const { error } = favoriteJoiSchema.validate({ favorite});
+
+    if (error) {
+      throw createHttpException("Missing field", 400);
+    }
+
+    const updateFavContact = await ContactModel.findByIdAndUpdate(contactId, { favorite }, {new: true})
+    .catch((e) => {
+      throw createHttpException("missing field favorite", 400);
+    });
+
+    if (updateFavContact === null) {
+      throw createHttpException("This contact is not found", 404);
+    }
+    res.json(updateFavContact);
+
+  } catch (error) {
+    next(error);
+  }
+});
+
 
 module.exports = router;
