@@ -1,4 +1,5 @@
 const Joi = require('joi');
+// const mongoose = require('mongoose')
 
 const addContactSchema = Joi.object({
     name: Joi.string()
@@ -18,6 +19,7 @@ const addContactSchema = Joi.object({
         .required(),
 
     favorite: Joi.bool(),
+
 })
 
 const favoriteJoiSchema = Joi.object({
